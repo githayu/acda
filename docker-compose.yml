@@ -1,0 +1,10 @@
+version: '3'
+services:
+  web:
+    container_name: gae_acnl
+    build: ./
+    restart: always
+    ports:
+    - 80:80
+    volumes:
+      - .:/var/www/html
