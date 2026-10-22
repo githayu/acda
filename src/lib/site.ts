@@ -9,6 +9,9 @@ export const siteTitle = 'マイデザイン作成支援ツール - とびだせ
 /** サイトの説明 */
 export const siteDescription = 'とびだせどうぶつの森用のマイデザイン作成支援ツールです。'
 
+/** Googleアナリティクス (GA4) の測定ID */
+export const gaMeasurementId = 'G-7Z22DLYS2K'
+
 /** FacebookアプリID (共有ダイアログ用) */
 export const facebookAppId = '133712920164211'
 

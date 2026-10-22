@@ -1,11 +1,22 @@
+import { GoogleAnalytics } from '@next/third-parties/google'
 import { Metadata, Viewport } from 'next'
 import { Inter, LINE_Seed_JP } from 'next/font/google'
 import { ReactNode } from 'react'
 
-import { baseOpenGraph, facebookAdmins, siteDescription, siteTitle, siteUrl } from '@/lib/site'
+import {
+  baseOpenGraph,
+  facebookAdmins,
+  gaMeasurementId,
+  siteDescription,
+  siteTitle,
+  siteUrl,
+} from '@/lib/site'
 
 import { Providers } from './providers'
 import './globals.css'
+
+/** 本番用のビルドだけで計測する (開発やE2Eのアクセスを計測しない) */
+const isAnalyticsEnabled = process.env.NEXT_PUBLIC_ENABLE_ANALYTICS === 'true'
 
 /** 英数字のフォント */
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
@@ -69,6 +80,8 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <Providers>{children}</Providers>
       </body>
+
+      {isAnalyticsEnabled && <GoogleAnalytics gaId={gaMeasurementId} />}
     </html>
   )
 }
