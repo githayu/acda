@@ -12,6 +12,7 @@ pnpm deploy:hosting  # 書き出して Firebase Hosting にデプロイ
 pnpm lint            # ESLint (自動修正あり)
 pnpm test            # 単体テスト (Vitest)
 pnpm e2e             # E2E テスト (Playwright。ビルドしてエミュレーター上で実行)
+E2E_BASE_URL=https://acnl-hayu-io.web.app pnpm e2e  # デプロイした本番の環境に対して実行
 ```
 
 型チェックは `pnpm exec tsc --noEmit` (TypeScript 7)。
