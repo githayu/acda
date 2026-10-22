@@ -1,7 +1,0 @@
-{
-    "require": {
-        "google/cloud-storage": "^1.12",
-        "ccampbell/chromephp": "^4.1",
-        "slim/slim": "^3.12"
-    }
-}

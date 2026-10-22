@@ -1,0 +1,114 @@
+{
+  "app": {
+    "マイデザイン作成支援ツール - とびだせどうぶつの森": "Custom Design Assistant - Animal Crossing: New Leaf",
+    "とびだせどうぶつの森": "Animal Crossing: New Leaf",
+    "マイデザイン作成支援ツール": "Custom Design Assistant",
+    "とびだせどうぶつの森用のマイデザイン作成支援ツールです。": "This is a tool to help you create custom designs in Animal Crossing: New Leaf by converting existing images into designs.",
+    "(´・ω・｀)やあ、君はこんなところで何をしているんだい？": "What're you doing in a place like this? ;)",
+    "お使いのブラウザでは表示できません。": "This tool cannot be used with your browser.",
+    "新規作成": "New Pattern",
+    "既存のデータは削除されます": "This will clear the existing data.",
+    "消去": "Clear",
+    "番号": "Numbers",
+    "グリッド": "Grid",
+    "公式URL": "http://www.animal-crossing.com/newleaf/",
+    "翻訳者": "Translated by Patrick",
+    "どうぶつの森 マイデザイン作成支援ツール": "Animal Crossing Custom Design Assistant"
+  },
+  "usage": {
+    "使い方": "How to Use This Tool",
+    "contents": [
+      [
+        "Import an image by dragging and dropping from your computer, or clicking and selecting one in the dialog box.",
+        "JPEG, PNG, GIF, WebP and SVG formats are supported."
+      ],
+      [
+        "Select the area you want to convert into a pattern, then click OK.",
+        "To use the whole image without selecting an area, click Auto-Resize."
+      ],
+      [
+        "There are some advanced options such as specifying palette colours and grid sizes and setting",
+        "the maximum number of colours to use.",
+        "Once you're happy with the settings, click Convert."
+      ],
+      [
+        "Once conversion is complete, your image will be displayed as a grid pattern, with button controls for various view options. The converted image will be saved until you click the Clear button, even if you close the browser window."
+      ]
+    ]
+  },
+  "hintsAndTips": {
+    "変換のヒント・概要": "Hints & Tips",
+    "contents": [
+      "You'll get better results if you crop your image in advance to focus on the part you need, and reduce the number of colours used if possible.",
+      "If you want a particular colour but it isn't surviving the conversion process, try filling the background of the image in with that colour beforehand to force it through.",
+      "This tool is designed to assist you in drawing patterns in the game, and as such, it does not support QR Code output."
+    ]
+  },
+  "disclaimer": {
+    "免責事項": "Disclaimer",
+    "contents": [
+      "The Animal Crossing: New Leaf Custom Design Assistant is provided free of charge by hayu.",
+      "hayu assumes no responsibility for data loss or any other issues arising from the use of this tool. Use at your own risk."
+    ]
+  },
+  "dialog": {
+    "ゲーム選択": "Game",
+    "変換する画像を選択": "New Pattern - Select Image",
+    "画像ファイルから変換": "Image file",
+    "画像ファイルから": "From image file",
+    "変換設定": "Conversion Settings",
+    "変換": "Convert",
+    "ここに画像をドラッグまたはクリック！": "Drag and drop an image here, or click for a file chooser dialog box!",
+    "パレットを使用": "Specify palette",
+    "マイデザイン": "Custom design",
+    "1枚": "Single panel",
+    "縦横2枚": "2 x 2 panels",
+    "縦横3枚": "3 x 3 panels",
+    "Proデザイン": "Pro design",
+    "シャツ・ワンピース - 半袖/袖": "Short sleeve for shirt/dress",
+    "シャツ・ワンピース - 長袖/袖": "Long sleeve for shirt/dress",
+    "ワンピース - ノースリーブ": "Sleeveless dress",
+    "顔出し看板": "Face cut-out board",
+    "その他": "Other",
+    "任意サイズ": "Custom multi-panel layout",
+    "変換サイズ": "Design size",
+    "最大色数": "Maximum number of colours",
+    "画像を選択": "Choose Image",
+    "決定": "OK",
+    "自動リサイズ": "Auto-Resize",
+    "比率を無視": "This option ignores the aspect ratio of the source image!",
+    "キャンセル": "Cancel"
+  },
+  "alert": {
+    "画像を選択": "Select image",
+    "ファイルサイズ制限を超えています。": "This image is too large.",
+    "一部のアップロードができませんでした": "Some data could not be uploaded.",
+    "アップロードできませんでした": "Unable to upload.",
+    "内部エラーが発生しました": "Internal error.",
+    "指定された画像の変換はできません": "This image cannot be converted.",
+    "範囲を選択して下さい": "Please select an area",
+    "画像を選択してください": "Please choose an image",
+    "変換範囲が決定されていません": "No area selected",
+    "選択範囲を変更": "Select area",
+    "変換する範囲を指定！": "Select an area to convert!",
+    "パレット": "Palette",
+    "デザインの変更と変換処理の最適化を行いました。": "Design conversion and processing optimised.",
+    "不正なアクセスです": "Unauthorised access",
+    "POSTされた情報に不備があります": "There was a problem with the data posted."
+  },
+  "view": {
+    "とびだせ": "New Leaf",
+    "あつまれ": "New Horizons",
+    "番号": "Numbers",
+    "格子": "Grid",
+    "全色": "All colors",
+    "15色": "15 colors",
+    "ミニマップ": "Minimap",
+    "パレット": "Palette",
+    "ミニマップを開く": "Open minimap",
+    "パレットを開く": "Open palette",
+    "いろあい": "Hue",
+    "あざやかさ": "Vividness",
+    "あかるさ": "Brightness"
+  }
+}
