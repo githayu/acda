@@ -19,6 +19,9 @@ import {
   zoomAt,
 } from './viewport'
 
+/** メインのキャンバスの1マスと目盛りの幅 (キャンバスの座標) */
+const CELL_SIZE = 20
+
 type CanvasOptions = {
   crop?: PercentCrop
   file?: File
@@ -395,11 +398,24 @@ export class Canvas {
   numberContainer = new Container()
   /** パレットの番号 (1〜15) を描いたテクスチャ */
   numberTextures: Texture[] = []
+  /** マスを載せる入れ物 (拡大・縮小と移動はこれに対して行い、目盛りの内側だけに表示する) */
+  root = new Container()
+  /** 上端と左端に固定する目盛り */
+  ruler = new Graphics()
+  /** 目盛りの番号 (列と行の1〜32、描き直すたびに作らず使い回す) */
+  rulerTexts: null | { columns: Text[]; rows: Text[] } = null
   /** 選択中の色の番号 (未選択ならundefined) */
   selectIndex?: number
   showGrid: boolean
   showNumber: boolean
+  /** 拡大率と位置 */
+  view: View = { scale: 1, x: 0, y: 0 }
   width = 660
+
+  /** マスを表示する範囲 (目盛りの内側、640×640)。拡大・縮小と移動はこの範囲を基準にする */
+  get box(): ViewSize {
+    return { height: this.height - CELL_SIZE, width: this.width - CELL_SIZE }
+  }
 
   constructor(options: CanvasOptions) {
     this.core = new Converter(options)
@@ -413,6 +429,113 @@ export class Canvas {
 
     this.minimap = new Minimap(this.core)
     this.initPromise = this.init()
+  }
+
+  /**
+   * 指2本のピンチ (PCではCtrl＋ホイールやトラックパッドのピンチ) で拡大・縮小し、
+   * 拡大中は指1本 (PCではマウス) のドラッグで動かせるようにする
+   * MARK: bindGestures
+   */
+  bindGestures(canvas: HTMLCanvasElement) {
+    /** 触れている指の位置 (キャンバスの座標) */
+    const pointers = new Map<number, { x: number; y: number }>()
+    let gesture: null | { distance: number; midX: number; midY: number; view: View } = null
+
+    /** 画面上の位置を、マスを表示する範囲の座標 (目盛りの内側の左上が原点) に直す */
+    const toCanvasPoint = (e: MouseEvent) => {
+      const rect = canvas.getBoundingClientRect()
+      const ratio = this.width / rect.width
+
+      return {
+        x: (e.clientX - rect.left) * ratio - CELL_SIZE,
+        y: (e.clientY - rect.top) * ratio - CELL_SIZE,
+      }
+    }
+
+    /** 今触れている指から、ジェスチャーの基準 (指の間の距離と中間の位置) を取り直す */
+    const startGesture = () => {
+      const [a, b] = [...pointers.values()]
+
+      gesture = {
+        distance: b ? Math.hypot(a.x - b.x, a.y - b.y) : 0,
+        midX: b ? (a.x + b.x) / 2 : a.x,
+        midY: b ? (a.y + b.y) / 2 : a.y,
+        view: this.view,
+      }
+    }
+
+    // ふつうのホイールはページのスクロールに任せ、Ctrl付き (トラックパッドのピンチを含む) だけ拡大・縮小する
+    canvas.addEventListener(
+      'wheel',
+      (e) => {
+        if (!e.ctrlKey && !e.metaKey) return
+
+        e.preventDefault()
+
+        const point = toCanvasPoint(e)
+        // マウスのホイールは1回の量が大きいため、1回で極端に拡大しないよう量を抑える
+        const delta = Math.max(-50, Math.min(50, e.deltaY))
+
+        this.setView(
+          zoomAt(this.view, Math.exp(-delta * 0.005), point.x, point.y, this.box, this.box)
+        )
+      },
+      { passive: false }
+    )
+
+    canvas.addEventListener('pointerdown', (e) => {
+      canvas.setPointerCapture(e.pointerId)
+      pointers.set(e.pointerId, toCanvasPoint(e))
+      startGesture()
+    })
+
+    canvas.addEventListener('pointermove', (e) => {
+      if (!gesture || !pointers.has(e.pointerId)) return
+
+      pointers.set(e.pointerId, toCanvasPoint(e))
+
+      const [a, b] = [...pointers.values()]
+
+      if (b && gesture.distance > 0) {
+        const distance = Math.hypot(a.x - b.x, a.y - b.y)
+        const midX = (a.x + b.x) / 2
+        const midY = (a.y + b.y) / 2
+        const zoomed = zoomAt(
+          gesture.view,
+          distance / gesture.distance,
+          gesture.midX,
+          gesture.midY,
+          this.box,
+          this.box
+        )
+
+        // 指の中間が動いた分だけ、拡大しながら移動する
+        this.setView({
+          ...zoomed,
+          x: zoomed.x + midX - gesture.midX,
+          y: zoomed.y + midY - gesture.midY,
+        })
+      } else if (!b && gesture.view.scale > 1) {
+        canvas.style.cursor = 'grabbing'
+        this.setView({
+          ...gesture.view,
+          x: gesture.view.x + a.x - gesture.midX,
+          y: gesture.view.y + a.y - gesture.midY,
+        })
+      }
+    })
+
+    /** 指が離れたら、残っている指で基準を取り直す */
+    const endPointer = (e: PointerEvent) => {
+      pointers.delete(e.pointerId)
+      canvas.style.cursor = ''
+
+      if (pointers.size) startGesture()
+      else gesture = null
+    }
+
+    canvas.addEventListener('pointerup', endPointer)
+    canvas.addEventListener('pointercancel', endPointer)
   }
 
   /** メインのキャンバスとミニマップを破棄する (2回目以降は何もしない) */
@@ -484,78 +607,94 @@ export class Canvas {
     this.gridContainer.addChild(grids, ...numbers)
   }
 
+  /** 格子線を、拡大・移動に合わせて画面の座標で描き直す (拡大しても線の太さは変えない) */
   drawGrid() {
     if (!this.app) return
 
-    // 既存のグリッドを削除
-    if (this.gridGraphics) {
-      this.app.stage.removeChild(this.gridGraphics)
-      this.gridGraphics.destroy()
-      this.gridGraphics = null
+    if (!this.gridGraphics) {
+      this.gridGraphics = new Graphics()
+      this.app.stage.addChild(this.gridGraphics)
     }
+
+    const g = this.gridGraphics.clear()
 
     if (!this.showGrid) return
 
-    const g = new Graphics()
-    const centerX = 20 + 16 * 20
-    const centerY = 20 + 16 * 20
+    const { scale, x, y } = this.view
+    const toScreenX = (index: number) => CELL_SIZE + x + index * CELL_SIZE * scale
+    const toScreenY = (index: number) => CELL_SIZE + y + index * CELL_SIZE * scale
+    const top = Math.max(CELL_SIZE, toScreenY(0))
+    const bottom = Math.min(this.height, toScreenY(SHEET_SIZE))
+    const left = Math.max(CELL_SIZE, toScreenX(0))
+    const right = Math.min(this.width, toScreenX(SHEET_SIZE))
 
-    // 細線 (黒)
-    for (let y = 20; y <= this.height; y += 20) {
-      g.moveTo(20, y).lineTo(this.width, y).stroke({ color: 0x000000, width: 1 })
+    for (let index = 0; index <= SHEET_SIZE; index++) {
+      // 中央の十文字は太線にする
+      const width = index === SHEET_SIZE / 2 ? 3 : 1
+      const lineX = toScreenX(index)
+      const lineY = toScreenY(index)
+
+      if (lineX >= CELL_SIZE && lineX <= this.width) {
+        g.moveTo(lineX, top).lineTo(lineX, bottom).stroke({ color: 0x000000, width })
+      }
+
+      if (lineY >= CELL_SIZE && lineY <= this.height) {
+        g.moveTo(left, lineY).lineTo(right, lineY).stroke({ color: 0x000000, width })
+      }
     }
-
-    for (let x = 20; x <= this.width; x += 20) {
-      g.moveTo(x, 20).lineTo(x, this.height).stroke({ color: 0x000000, width: 1 })
-    }
-
-    // 十文字の太線 (中央)
-    g.moveTo(20, centerY).lineTo(this.width, centerY).stroke({ color: 0x000000, width: 3 })
-    g.moveTo(centerX, 20).lineTo(centerX, this.height).stroke({ color: 0x000000, width: 3 })
-
-    this.gridGraphics = g
-    this.app.stage.addChild(g)
   }
 
+  /** 目盛りを上端と左端に固定し、マスの境目の区切り線と、見えている列と行の番号を描き直す */
   drawRuler() {
     if (!this.app) return
-    const gridSize = 20
-    const grids = new Graphics()
-    const numberStyle = new TextStyle({
-      fill: 0xdddddd,
-      fontFamily: 'Verdana',
-      fontSize: 10,
+
+    if (!this.rulerTexts) {
+      const style = new TextStyle({ fill: 0xdddddd, fontFamily: 'Verdana', fontSize: 10 })
+      const createTexts = () =>
+        Array.from({ length: SHEET_SIZE }, (_, i) => new Text({ style, text: `${i + 1}` }))
+
+      this.rulerTexts = { columns: createTexts(), rows: createTexts() }
+      this.app.stage.addChild(this.ruler, ...this.rulerTexts.columns, ...this.rulerTexts.rows)
+    }
+
+    const { scale, x, y } = this.view
+    const size = CELL_SIZE * scale
+    const g = this.ruler.clear()
+
+    // 目盛りの帯 (下にマスがもぐっても見えないよう塗りつぶす)
+    g.rect(0, 0, this.width, CELL_SIZE).rect(0, 0, CELL_SIZE, this.height).fill(0x333333)
+
+    this.rulerTexts.columns.forEach((text, i) => {
+      const left = CELL_SIZE + x + i * CELL_SIZE * scale
+
+      // マスの右の境目に区切り線だけを引く (枠で囲むと、拡大したときに長方形になり、端で分かれて見える)
+      if (left + size > CELL_SIZE && left < this.width) {
+        g.moveTo(left + size, 0)
+          .lineTo(left + size, CELL_SIZE)
+          .stroke({ color: 0x777777, width: 1 })
+      }
+
+      text.position.set(left + (size - text.width) / 2, (CELL_SIZE - text.height) / 2)
+
+      // 端で半分だけ見えているマスの番号は、左上の角や枠の外にはみ出すので出さない
+      text.visible = text.x >= CELL_SIZE && text.x + text.width <= this.width
     })
 
-    // x
-    for (let x = gridSize; x < this.width; x += gridSize) {
-      const number = new Text({ style: numberStyle, text: `${x / gridSize}` })
-      const numX = (gridSize - number.width) / 2 + x
-      const numY = (gridSize - number.height) / 2
+    this.rulerTexts.rows.forEach((text, i) => {
+      const top = CELL_SIZE + y + i * CELL_SIZE * scale
 
-      number.position.set(numX, numY)
+      if (top + size > CELL_SIZE && top < this.height) {
+        g.moveTo(0, top + size)
+          .lineTo(CELL_SIZE, top + size)
+          .stroke({ color: 0x777777, width: 1 })
+      }
 
-      this.app.stage.addChild(number)
+      text.position.set((CELL_SIZE - text.width) / 2, top + (size - text.height) / 2)
+      text.visible = text.y >= CELL_SIZE && text.y + text.height <= this.height
+    })
 
-      grids.rect(x, 0, gridSize, gridSize)
-      grids.stroke({ color: 0xdddddd, width: 1 })
-    }
-
-    // y
-    for (let y = gridSize; y < this.height; y += gridSize) {
-      const number = new Text({ style: numberStyle, text: `${y / gridSize}` })
-      const numX = (gridSize - number.width) / 2
-      const numY = (gridSize - number.height) / 2 + y
-
-      number.position.set(numX, numY)
-
-      this.app.stage.addChild(number)
-
-      grids.rect(0, y, gridSize, gridSize)
-      grids.stroke({ color: 0xdddddd, width: 1 })
-    }
-
-    this.app.stage.addChild(grids)
+    // 左上の角は、列と行の目盛りが重ならないよう上から塗る
+    g.rect(0, 0, CELL_SIZE, CELL_SIZE).fill(0x333333)
   }
 
   /** パレットの番号 (1〜15) のテクスチャを作る (作成済みならそれを返す) */
@@ -598,8 +737,19 @@ export class Canvas {
       width: this.width,
     })
 
-    this.app.stage.addChild(this.gridContainer)
-    this.app.stage.addChild(this.numberContainer)
+    // マスは目盛りの内側だけに表示する
+    const cellArea = new Graphics()
+      .rect(CELL_SIZE, CELL_SIZE, this.width - CELL_SIZE, this.height - CELL_SIZE)
+      .fill(0xffffff)
+
+    this.app.stage.addChild(this.root, cellArea)
+    this.root.mask = cellArea
+    // マスは目盛りの内側の左上 (20, 20) から描かれているので、そこを拡大・縮小の原点にする
+    this.root.pivot.set(CELL_SIZE, CELL_SIZE)
+    this.root.position.set(CELL_SIZE, CELL_SIZE)
+    this.root.addChild(this.gridContainer, this.numberContainer)
+    this.bindGestures(this.app.canvas)
+    this.updateTouchAction()
 
     this.drawRuler()
     this.drawGrid()
@@ -650,5 +800,26 @@ export class Canvas {
   selectColor(index?: number) {
     this.selectIndex = index
     this.drawCanvas()
+  }
+
+  /** 拡大率と位置を変えて描き直す (枠から外れないよう直してから使う) */
+  setView(view: View) {
+    this.view = clampView(view, this.box, this.box)
+    this.root.scale.set(this.view.scale)
+    this.root.position.set(CELL_SIZE + this.view.x, CELL_SIZE + this.view.y)
+    this.drawGrid()
+    this.drawRuler()
+    this.updateTouchAction()
+    this.app?.render()
+  }
+
+  /**
+   * 拡大していないときは、指1本のドラッグをページのスクロールに任せる
+   * 拡大中はキャンバスの中を動かすため、ブラウザの操作を止める
+   */
+  updateTouchAction() {
+    if (!this.app) return
+
+    this.app.canvas.style.touchAction = this.view.scale > 1 ? 'none' : 'pan-x pan-y'
   }
 }

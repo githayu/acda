@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test'
 
 import { defaultColors, defaultPalettes } from '../src/store/app'
-import { isNear, snapshotCells } from './canvas'
+import { isNear, mainCanvas, snapshot, snapshotCells } from './canvas'
 import { convertImage, createPng, readSavedResult, Rgb, Rgba, rgbKey } from './helpers'
 
 /** 0xRRGGBBをRGBにする */
@@ -306,6 +306,105 @@ test.describe('キャンバスの表示', () => {
     // 番号を消すと、色のあるマスの中央は変わるが、透明のマスの中央は変わらない
     await expect.poll(async () => isNear((await centers())[1], before[1])).toBe(false)
     expect(isNear((await centers())[0], before[0])).toBe(true)
+  })
+})
+
+test.describe('メインのキャンバスのピンチ', () => {
+  test.skip(({ isMobile }) => !isMobile, 'タッチ操作はモバイルで確認する')
+
+  test('指2本で広げると拡大され、拡大中は指1本のドラッグで動かせる', async ({ page }) => {
+    await page.goto('/')
+    await convertImage(page, halfPng(64))
+
+    const canvas = mainCanvas(page)
+    const box = await canvas.boundingBox()
+
+    if (!box) throw new Error('メインのキャンバスが表示されていない')
+
+    // 拡大していないときは、指1本のドラッグをページのスクロールに任せる
+    expect(await canvas.evaluate((el) => el.style.touchAction)).toBe('pan-x pan-y')
+    expect(isNear((await snapshotCells(page)).fill(0, 0), red)).toBe(true)
+
+    // 右寄りの位置で、指の間を3倍に広げる
+    const cdp = await page.context().newCDPSession(page)
+    const centerX = box.x + box.width * 0.97
+    const centerY = box.y + box.height / 2
+    const touch = (type: 'touchEnd' | 'touchMove' | 'touchStart', gap: number) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        touchPoints:
+          type === 'touchEnd'
+            ? []
+            : [
+                { id: 1, x: centerX - gap, y: centerY },
+                { id: 2, x: centerX + gap, y: centerY },
+              ],
+        type,
+      })
+
+    await touch('touchStart', 10)
+
+    for (let gap = 12; gap <= 30; gap += 2) await touch('touchMove', gap)
+
+    await touch('touchEnd', 30)
+
+    // 左上のマスに、画像の右半分 (青) が見えている
+    await expect.poll(async () => isNear((await snapshotCells(page)).fill(0, 0), blue)).toBe(true)
+    expect(await canvas.evaluate((el) => el.style.touchAction)).toBe('none')
+
+    // 指1本で右へドラッグすると、左側 (赤) が見えてくる
+    const drag = (type: 'touchEnd' | 'touchMove' | 'touchStart', x: number) =>
+      cdp.send('Input.dispatchTouchEvent', {
+        touchPoints: type === 'touchEnd' ? [] : [{ id: 1, x, y: centerY }],
+        type,
+      })
+
+    await drag('touchStart', box.x + 20)
+
+    for (let x = box.x + 40; x <= box.x + 220; x += 20) await drag('touchMove', x)
+
+    await drag('touchEnd', box.x + 220)
+    await expect.poll(async () => isNear((await snapshotCells(page)).fill(0, 0), red)).toBe(true)
+  })
+})
+
+test.describe('メインのキャンバスの拡大 (PC)', () => {
+  test.skip(({ isMobile }) => isMobile, 'マウスの操作はデスクトップで確認する')
+
+  test('Ctrl＋ホイールで拡大され、拡大中はマウスのドラッグで動かせる', async ({ page }) => {
+    await page.goto('/')
+    await convertImage(page, halfPng(64))
+
+    const box = await mainCanvas(page).boundingBox()
+
+    if (!box) throw new Error('メインのキャンバスが表示されていない')
+
+    await expect.poll(async () => isNear((await snapshotCells(page)).fill(0, 0), red)).toBe(true)
+
+    // ふつうのホイールでは拡大しない
+    await page.mouse.move(box.x + box.width * 0.97, box.y + box.height / 2)
+    await page.mouse.wheel(0, -300)
+    await expect.poll(async () => isNear((await snapshotCells(page)).fill(0, 0), red)).toBe(true)
+
+    // 右寄りの位置でCtrl＋ホイールすると、左上のマスに画像の右半分 (青) が見える
+    await page.keyboard.down('Control')
+
+    for (let i = 0; i < 5; i++) await page.mouse.wheel(0, -100)
+
+    await page.keyboard.up('Control')
+    await expect.poll(async () => isNear((await snapshotCells(page)).fill(0, 0), blue)).toBe(true)
+
+    // 目盛りの帯は拡大しても上端と左端に残り、マスがその下にもぐらない
+    const shot = await snapshot(mainCanvas(page))
+
+    expect(isNear(shot.colorAt(box.width / 2, 3), background)).toBe(true)
+    expect(isNear(shot.colorAt(3, box.height / 2), background)).toBe(true)
+
+    // マウスで右へドラッグすると、左側 (赤) が見えてくる
+    await page.mouse.move(box.x + 20, box.y + box.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 600, box.y + box.height / 2, { steps: 10 })
+    await page.mouse.up()
+    await expect.poll(async () => isNear((await snapshotCells(page)).fill(0, 0), red)).toBe(true)
   })
 })
 
